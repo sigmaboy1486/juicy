@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robocar Controller - Arduino R4 Wi-Fi</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            900: '#0a0f1d',
+                            800: '#111827',
+                            700: '#1f293d',
+                            600: '#334155',
+                            accent: '#06b6d4',
+                            neon: '#22d3ee',
+                            danger: '#ef4444',
+                            success: '#22c55e',
+                            warning: '#f59e0b'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-cyber { font-family: 'Orbitron', sans-serif; }
+        .glow-accent { box-shadow: 0 0 20px rgba(6, 182, 212, 0.3); }
+        .glow-accent-strong { box-shadow: 0 0 30px rgba(34, 211, 238, 0.6); }
+        .glow-danger { box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); }
+        .glow-success { box-shadow: 0 0 20px rgba(34, 197, 94, 0.4); }
+        /* Custom Scrollbar for Telemetry */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0f1d; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-cyber-900 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-cyber-accent selection:text-cyber-900">
+
+    <header class="bg-cyber-800/80 backdrop-blur-md border-b border-cyber-700/50 sticky top-0 z-50 px-4 py-3 shadow-lg">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyber-accent to-blue-600 flex items-center justify-center glow-accent">
+                    <i class="fa-solid fa-robot text-cyber-900 text-xl font-bold"></i>
+                </div>
+                <div>
+                    <h1 class="font-cyber text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyber-neon to-blue-400">ROBOCAR R4</h1>
+                    <p class="text-xs text-slate-400">Arduino Wi-Fi Remote Telemetry Suite</p>
+                </div>
+            </div>
+
+            <!-- Connection Status Badge & IP Input -->
+            <div class="flex flex-wrap items-center gap-2 bg-cyber-900/60 p-2 rounded-xl border border-cyber-700/60">
+                <div class="flex items-center space-x-2 px-2">
+                    <span id="statusLed" class="w-3 h-3 rounded-full bg-cyber-danger glow-danger inline-block transition-all duration-300"></span>
+                    <span id="statusText" class="text-xs font-semibold text-slate-300">DISCONNECTED</span>
+                </div>
+                <div class="flex items-center space-x-1">
+                    <input type="text" id="ipInput" value="192.168.4.1" placeholder="Arduino IP" 
+                        class="bg-cyber-800 border border-cyber-600 text-xs rounded-lg px-3 py-1.5 w-32 text-slate-200 focus:outline-none focus:border-cyber-accent font-mono">
+                    <button id="connectBtn" onclick="toggleConnection()" class="bg-cyber-accent hover:bg-cyan-400 text-cyber-900 font-bold px-3 py-1.5 rounded-lg text-xs transition-all flex items-center space-x-1">
+                        <i class="fa-solid fa-plug"></i>
+                        <span id="connectBtnText">Connect</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 my-auto">
+
+        <!-- Left Column: Joystick & Throttle Controls (Cols 1-7) -->
+        <div class="lg:col-span-7 flex flex-col gap-6">
+            
+            <!-- Controls Header & Throttle Card -->
+            <div class="bg-cyber-800/60 backdrop-blur-md rounded-2xl p-5 border border-cyber-700/50 shadow-xl flex flex-col gap-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-sliders text-cyber-accent"></i>
+                        <h2 class="font-cyber font-bold text-sm text-slate-200">THROTTLE & SPEED CONTROL</h2>
+                    </div>
+                    <span id="speedValue" class="font-cyber font-bold text-cyber-neon bg-cyber-900/80 px-3 py-1 rounded-lg border border-cyber-700 text-sm">85%</span>
+                </div>
+                <!-- Speed Slider -->
+                <div class="flex items-center gap-4">
+                    <span class="text-xs text-slate-400 font-mono">20%</span>
+                    <input type="range" id="speedSlider" min="20" max="100" value="85" oninput="updateSpeed(this.value)"
+                        class="w-full h-2 bg-cyber-900 rounded-lg appearance-none cursor-pointer accent-cyber-accent">
+                    <span class="text-xs text-slate-400 font-mono">100%</span>
+                </div>
+            </div>
+
+            <!-- Virtual Joystick Arena -->
+            <div class="bg-cyber-800/60 backdrop-blur-md rounded-2xl p-6 border border-cyber-700/50 shadow-xl flex flex-col items-center justify-center relative min-h-[320px] overflow-hidden">
+                <div class="absolute top-4 left-4 flex items-center space-x-2">
+                    <i class="fa-solid fa-compass text-cyber-accent"></i>
+                    <h2 class="font-cyber font-bold text-sm text-slate-200">VIRTUAL JOYSTICK</h2>
+                </div>
+                <div class="absolute top-4 right-4 text-xs font-mono text-slate-400 bg-cyber-900/60 px-2 py-1 rounded border border-cyber-700">
+                    Mode: <span id="joystickStateText" class="text-cyber-neon font-bold">IDLE</span>
+                </div>
+
+                <!-- Joystick Base Container -->
+                <div id="joystickZone" class="w-56 h-56 rounded-full bg-cyber-900/80 border-2 border-cyber-600/60 relative flex items-center justify-center touch-none mt-6 shadow-inner glow-accent">
+                    <!-- Crosshair guidelines -->
+                    <div class="absolute w-full h-[1px] bg-cyber-700/50"></div>
+                    <div class="absolute h-full w-[1px] bg-cyber-700/50"></div>
+                    
+                    <!-- Direction Labels -->
+                    <span class="absolute top-2 text-[10px] font-cyber text-slate-400">FWD</span>
+                    <span class="absolute bottom-2 text-[10px] font-cyber text-slate-400">BWD</span>
+                    <span class="absolute left-2 text-[10px] font-cyber text-slate-400">LEFT</span>
+                    <span class="absolute right-2 text-[10px] font-cyber text-slate-400">RIGHT</span>
+
+                    <!-- Joystick Handle -->
+                    <div id="joystickHandle" class="w-20 h-20 rounded-full bg-gradient-to-tr from-cyan-600 to-cyber-accent absolute shadow-lg cursor-grab active:cursor-grabbing flex items-center justify-center border-2 border-cyan-300 transition-transform duration-75">
+                        <i class="fa-solid fa-gamepad text-cyber-900 text-xl pointer-events-none"></i>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-400 mt-4 text-center">Drag or touch handle inside the pad for proportional directional steering.</p>
+            </div>
+        </div>
+
+        <!-- Right Column: Button Grid & Keyboard Mapping (Cols 8-12) -->
+        <div class="lg:col-span-5 flex flex-col gap-6">
+
+            <!-- Dedicated Button Grid Controller -->
+            <div class="bg-cyber-800/60 backdrop-blur-md rounded-2xl p-5 border border-cyber-700/50 shadow-xl flex flex-col gap-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-gamepad text-cyber-accent"></i>
+                        <h2 class="font-cyber font-bold text-sm text-slate-200">MANUAL BUTTON GRID</h2>
+                    </div>
+                    <span class="text-xs text-slate-400 font-mono">Touch & Click</span>
+                </div>
+
+                <!-- Button Grid Layout -->
+                <div class="grid grid-cols-3 gap-3 my-2">
+                    <!-- Top Row: Empty, Forward, Empty -->
+                    <div></div>
+                    <button ontouchstart="sendCmd('FORWARD')" onmousedown="sendCmd('FORWARD')" onmouseup="sendCmd('STOP')" ontouchend="sendCmd('STOP')"
+                        class="bg-cyber-700 hover:bg-cyber-600 active:scale-95 text-cyber-neon border border-cyber-600 font-cyber font-bold py-4 rounded-xl flex flex-col items-center justify-center gap-1 transition-all shadow-md">
+                        <i class="fa-solid fa-arrow-up text-xl"></i>
+                        <span class="text-[10px]">FWD</span>
+                    </button>
+                    <div></div>
+
+                    <!-- Middle Row: Left, Stop, Right -->
+                    <button ontouchstart="sendCmd('LEFT')" onmousedown="sendCmd('LEFT')" onmouseup="sendCmd('STOP')" ontouchend="sendCmd('STOP')"
+                        class="bg-cyber-700 hover:bg-cyber-600 active:scale-95 text-cyber-neon border border-cyber-600 font-cyber font-bold py-4 rounded-xl flex flex-col items-center justify-center gap-1 transition-all shadow-md">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
+                        <span class="text-[10px]">LEFT</span>
+                    </button>
+                    <button onclick="sendCmd('STOP')" 
+                        class="bg-red-950/80 hover:bg-red-900 active:scale-95 text-red-400 border border-red-700/60 font-cyber font-bold py-4 rounded-xl flex flex-col items-center justify-center gap-1 transition-all glow-danger shadow-md">
+                        <i class="fa-solid fa-hand text-xl"></i>
+                        <span class="text-[10px]">STOP</span>
+                    </button>
+                    <button ontouchstart="sendCmd('RIGHT')" onmousedown="sendCmd('RIGHT')" onmouseup="sendCmd('STOP')" ontouchend="sendCmd('STOP')"
+                        class="bg-cyber-700 hover:bg-cyber-600 active:scale-95 text-cyber-neon border border-cyber-600 font-cyber font-bold py-4 rounded-xl flex flex-col items-center justify-center gap-1 transition-all shadow-md">
+                        <i class="fa-solid fa-arrow-right text-xl"></i>
+                        <span class="text-[10px]">RIGHT</span>
+                    </button>
+
+                    <!-- Bottom Row: Empty, Backward, Empty -->
+                    <div></div>
+                    <button ontouchstart="sendCmd('BACKWARD')" onmousedown="sendCmd('BACKWARD')" onmouseup="sendCmd('STOP')" ontouchend="sendCmd('STOP')"
+                        class="bg-cyber-700 hover:bg-cyber-600 active:scale-95 text-cyber-neon border border-cyber-600 font-cyber font-bold py-4 rounded-xl flex flex-col items-center justify-center gap-1 transition-all shadow-md">
+                        <i class="fa-solid fa-arrow-down text-xl"></i>
+                        <span class="text-[10px]">REV</span>
+                    </button>
+                    <div></div>
+                </div>
+
+                <!-- Auxiliary Action Buttons -->
+                <div class="grid grid-cols-2 gap-3 pt-2 border-t border-cyber-700/40">
+                    <button onclick="toggleHorn()" id="hornBtn" class="bg-cyber-700/80 hover:bg-cyber-600 active:scale-95 text-yellow-400 border border-cyber-600 font-cyber font-bold py-3 rounded-xl flex items-center justify-center gap-2 text-xs transition-all shadow">
+                        <i class="fa-solid fa-volume-high"></i> HORN
+                    </button>
+                    <button onclick="toggleLights()" id="lightsBtn" class="bg-cyber-700/80 hover:bg-cyber-600 active:scale-95 text-cyber-neon border border-cyber-600 font-cyber font-bold py-3 rounded-xl flex items-center justify-center gap-2 text-xs transition-all shadow">
+                        <i class="fa-solid fa-lightbulb"></i> LIGHTS: OFF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Bluetooth & Keyboard Status Integration Card -->
+            <div class="bg-cyber-800/60 backdrop-blur-md rounded-2xl p-5 border border-cyber-700/50 shadow-xl flex flex-col gap-3">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-brands fa-bluetooth text-blue-400"></i>
+                        <h2 class="font-cyber font-bold text-sm text-slate-200">BLUETOOTH & KEYBOARD</h2>
+                    </div>
+                    <span id="kbStatusBadge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800">Active (WASD / Arrows)</span>
+                </div>
+                <p class="text-xs text-slate-400">Use keyboard keys <b class="text-cyber-neon">W, A, S, D</b> or <b class="text-cyber-neon">Arrow Keys</b> for instant drive control. Pair external BT keyboards seamlessly.</p>
+                
+                <button onclick="connectBluetoothKeyboard()" class="w-full bg-blue-600/30 hover:bg-blue-600/50 active:scale-95 text-blue-300 border border-blue-500/50 font-cyber font-bold py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-2">
+                    <i class="fa-brands fa-bluetooth-b"></i> Pair BT HID Keyboard Device
+                </button>
+            </div>
+
+        </div>
+
+    </main>
+
+    <footer class="max-w-7xl w-full mx-auto px-4 pb-6">
+        <div class="bg-cyber-800/80 backdrop-blur-md rounded-2xl p-4 border border-cyber-700/50 shadow-xl flex flex-col gap-2">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-terminal text-cyber-accent"></i>
+                    <h3 class="font-cyber text-xs font-bold text-slate-300">LIVE TELEMETRY LOG</h3>
+                </div>
+                <button onclick="clearLogs()" class="text-[10px] text-slate-400 hover:text-cyber-neon font-mono underline transition-colors">Clear Console</button>
+            </div>
+            <!-- Log Console Window -->
+            <div id="logConsole" class="bg-cyber-900/90 border border-cyber-700/80 rounded-xl p-3 h-28 overflow-y-auto font-mono text-[11px] text-slate-300 flex flex-col gap-1">
+                <div class="text-slate-500">[System] Robocar controller initialized. Ready for connection to Arduino R4 Wi-Fi.</div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Global State Variables
+        let isConnected = false;
+        let arduinoIP = "192.168.4.1";
+        let speed = 85;
+        let lightsOn = false;
+        let hornActive = false;
+        let currentCommand = "STOP";
+        let activeKeys = {};
+
+        // DOM Elements
+        const ipInput = document.getElementById('ipInput');
+        const statusLed = document.getElementById('statusLed');
+        const statusText = document.getElementById('statusText');
+        const connectBtnText = document.getElementById('connectBtnText');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const logConsole = document.getElementById('logConsole');
+        const lightsBtn = document.getElementById('lightsBtn');
+        const joystickZone = document.getElementById('joystickZone');
+        const joystickHandle = document.getElementById('joystickHandle');
+        const joystickStateText = document.getElementById('joystickStateText');
+
+        // Logging helper
+        function logMessage(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            let colorClass = "text-slate-300";
+            if (type === 'success') colorClass = "text-emerald-400";
+            if (type === 'error') colorClass = "text-red-400";
+            if (type === 'sent') colorClass = "text-cyan-400";
+            div.className = `${colorClass} flex gap-2`;
+            div.innerHTML = `<span class="text-slate-500">[${time}]</span> <span>${msg}</span>`;
+            logConsole.appendChild(div);
+            logConsole.scrollTop = logConsole.scrollHeight;
+        }
+
+        function clearLogs() {
+            logConsole.innerHTML = '<div class="text-slate-500">[System] Console cleared.</div>';
+        }
+
+        // Connection Handling
+        function toggleConnection() {
+            arduinoIP = ipInput.value.trim();
+            if (!arduinoIP) {
+                logMessage("Please enter a valid Arduino IP address.", "error");
+                return;
+            }
+
+            if (!isConnected) {
+                logMessage(`Attempting connection to Arduino R4 at http://${arduinoIP}...`, 'info');
+                // Simulate connection handshake or actual HTTP ping
+                setTimeout(() => {
+                    isConnected = true;
+                    statusLed.className = "w-3 h-3 rounded-full bg-cyber-success glow-success inline-block transition-all duration-300";
+                    statusText.textContent = "CONNECTED";
+                    connectBtnText.textContent = "Disconnect";
+                    ipInput.disabled = true;
+                    logMessage(`Successfully connected to Robocar at ${arduinoIP}`, 'success');
+                }, 600);
+            } else {
+                isConnected = false;
+                statusLed.className = "w-3 h-3 rounded-full bg-cyber-danger glow-danger inline-block transition-all duration-300";
+                statusText.textContent = "DISCONNECTED";
+                connectBtnText.textContent = "Connect";
+                ipInput.disabled = false;
+                logMessage("Disconnected from Robocar.", 'info');
+            }
+        }
+
+        // Speed Handler
+        function updateSpeed(val) {
+            speed = val;
+            speedValue.textContent = val + '%';
+            if (isConnected) {
+                sendHttpCommand(`SPEED=${speed}`);
+            }
+        }
+
+        // HTTP Command Sender
+        function sendCmd(cmd) {
+            if (currentCommand === cmd && cmd !== 'STOP') return;
+            currentCommand = cmd;
+            
+            logMessage(`Command Triggered: ${cmd} (Speed: ${speed}%)`, 'sent');
+            
+            if (isConnected) {
+                sendHttpCommand(`cmd=${cmd}&speed=${speed}`);
+            }
+        }
+
+        function sendHttpCommand(query) {
+            const url = `http://${arduinoIP}/action?${query}`;
+            fetch(url, { mode: 'no-cors' })
+                .then(() => {
+                    // no-cors doesn't allow reading response status, but confirms dispatch
+                })
+                .catch(err => {
+                    logMessage(`Network Error communicating with Arduino: ${err.message}`, 'error');
+                });
+        }
+
+        // Aux Toggles
+        function toggleLights() {
+            lightsOn = !lightsOn;
+            lightsBtn.innerHTML = `<i class="fa-solid fa-lightbulb"></i> LIGHTS: ${lightsOn ? 'ON' : 'OFF'}`;
+            lightsBtn.className = lightsOn 
+                ? "bg-cyan-600 active:scale-95 text-cyber-900 font-cyber font-bold py-3 rounded-xl flex items-center justify-center gap-2 text-xs transition-all shadow glow-accent"
+                : "bg-cyber-700/80 hover:bg-cyber-600 active:scale-95 text-cyber-neon border border-cyber-600 font-cyber font-bold py-3 rounded-xl flex items-center justify-center gap-2 text-xs transition-all shadow";
+            
+            logMessage(`Aux Lights toggled: ${lightsOn ? 'ON' : 'OFF'}`, 'sent');
+            if (isConnected) sendHttpCommand(`cmd=LIGHTS_${lightsOn ? 'ON' : 'OFF'}`);
+        }
+
+        function toggleHorn() {
+            hornActive = !hornActive;
+            logMessage("HORN activated!", 'sent');
+            if (isConnected) sendHttpCommand(`cmd=HORN`);
+            setTimeout(() => { hornActive = false; }, 300);
+        }
+
+        // Virtual Joystick Mechanics
+        let joystickCenter = { x: 0, y: 0 };
+        let maxRadius = 75;
+        let isDragging = false;
+
+        function initJoystick() {
+            const rect = joystickZone.getBoundingClientRect();
+            joystickCenter = { x: rect.width / 2, y: rect.height / 2 };
+        }
+
+        window.addEventListener('resize', initJoystick);
+        window.addEventListener('load', initJoystick);
+
+        function handleJoystickMove(clientX, clientY) {
+            const rect = joystickZone.getBoundingClientRect();
+            const x = clientX - rect.left - joystickCenter.x;
+            const y = clientY - rect.top - joystickCenter.y;
+            
+            const distance = Math.sqrt(x * x + y * y);
+            let angle = Math.atan2(y, x);
+            
+            let constrainedX = x;
+            let constrainedY = y;
+
+            if (distance > maxRadius) {
+                constrainedX = Math.cos(angle) * maxRadius;
+                constrainedY = Math.sin(angle) * maxRadius;
+            }
+
+            joystickHandle.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
+
+            // Determine Directional Vector
+            let threshold = 25;
+            if (distance < threshold) {
+                joystickStateText.textContent = "STOP";
+                sendCmd("STOP");
+            } else {
+                // Convert angle to cardinal/diagonal directions
+                let deg = angle * (180 / Math.PI);
+                if (deg < 0) deg += 360;
+
+                if (deg >= 315 || deg < 45) {
+                    joystickStateText.textContent = "RIGHT";
+                    sendCmd("RIGHT");
+                } else if (deg >= 45 && deg < 135) {
+                    joystickStateText.textContent = "BACKWARD";
+                    sendCmd("BACKWARD");
+                } else if (deg >= 135 && deg < 225) {
+                    joystickStateText.textContent = "LEFT";
+                    sendCmd("LEFT");
+                } else {
+                    joystickStateText.textContent = "FORWARD";
+                    sendCmd("FORWARD");
+                }
+            }
+        }
+
+        function resetJoystick() {
+            joystickHandle.style.transform = `translate(0px, 0px)`;
+            joystickStateText.textContent = "IDLE";
+            sendCmd("STOP");
+            isDragging = false;
+        }
+
+        joystickHandle.addEventListener('mousedown', (e) => { isDragging = true; initJoystick(); });
+        window.addEventListener('mousemove', (e) => { if (isDragging) handleJoystickMove(e.clientX, e.clientY); });
+        window.addEventListener('mouseup', () => { if (isDragging) resetJoystick(); });
+
+        joystickHandle.addEventListener('touchstart', (e) => { isDragging = true; initJoystick(); e.preventDefault(); });
+        window.addEventListener('touchmove', (e) => { if (isDragging && e.touches.length > 0) handleJoystickMove(e.touches[0].clientX, e.touches[0].clientY); });
+        window.addEventListener('touchend', () => { if (isDragging) resetJoystick(); });
+
+        // Keyboard & Bluetooth Keyboard Integration
+        window.addEventListener('keydown', (e) => {
+            if (e.repeat) return; // Prevent spamming on hold
+            const key = e.key.toLowerCase();
+            if (key === 'w' || key === 'arrowup') { sendCmd('FORWARD'); activeKeys['fwd'] = true; }
+            if (key === 's' || key === 'arrowdown') { sendCmd('BACKWARD'); activeKeys['bwd'] = true; }
+            if (key === 'a' || key === 'arrowleft') { sendCmd('LEFT'); activeKeys['left'] = true; }
+            if (key === 'd' || key === 'arrowright') { sendCmd('RIGHT'); activeKeys['right'] = true; }
+            if (key === ' ') { toggleHorn(); }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (['w', 's', 'a', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+                sendCmd('STOP');
+            }
+        });
+
+        // Web Bluetooth Keyboard / Device connection stub
+        function connectBluetoothKeyboard() {
+            if (!navigator.bluetooth) {
+                logMessage("Web Bluetooth API is not supported by your browser/device.", "error");
+                return;
+            }
+            logMessage("Scanning for Bluetooth LE HID keyboards/controllers...", "info");
+            navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: ['battery_service', 'device_information']
+            })
+            .then(device => {
+                logMessage(`Connected to Bluetooth Device: ${device.name || 'Unknown Device'}`, 'success');
+                document.getElementById('kbStatusBadge').textContent = `BT Connected: ${device.name || 'HID'}`;
+                document.getElementById('kbStatusBadge').className = "text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800";
+            })
+            .catch(error => {
+                logMessage(`Bluetooth pairing cancelled or failed: ${error.message}`, 'error');
+            });
+        }
+    </script>
+</body>
+</html>
