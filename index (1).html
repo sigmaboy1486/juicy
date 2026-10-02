@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>RoboCar Control</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="header">
+      <p class="eyebrow">ARDUINO UNO R4 WIFI</p>
+      <h1>RoboCar</h1>
+      <p class="subtitle">Mobile control panel</p>
+    </header>
+
+    <section class="card setup-card">
+      <div class="card-title-row">
+        <div>
+          <h2>Connection</h2>
+          <p class="muted">Phone + Arduino should be on the same Wi-Fi.</p>
+        </div>
+        <span id="statusDot" class="status-dot offline"></span>
+      </div>
+
+      <label for="wifiName">Wi-Fi name</label>
+      <input id="wifiName" type="text" value="Bluebirds" autocomplete="off" />
+
+      <label for="wifiPassword">Wi-Fi password</label>
+      <input id="wifiPassword" type="password" placeholder="Enter Wi-Fi password" autocomplete="off" />
+
+      <label for="backendUrl">Backend URL</label>
+      <input id="backendUrl" type="url" placeholder="https://your-backend-url" autocomplete="off" />
+
+      <label for="arduinoIp">Arduino IP</label>
+      <input id="arduinoIp" type="text" placeholder="Example: 192.168.0.113" autocomplete="off" />
+
+      <label for="apiKey">Backend key</label>
+      <input id="apiKey" type="password" value="robocar123" autocomplete="off" />
+
+      <button id="connectBtn" class="wide-btn primary">Connect</button>
+
+      <p id="statusText" class="status-text">Not connected</p>
+
+      <p class="note">
+        The page can remember the network name/password for convenience, but a browser cannot switch the phone's Wi-Fi network itself.
+        Connect the phone to your Bluebirds network in the phone's Wi-Fi settings, and put the same Wi-Fi credentials in the Arduino firmware.
+      </p>
+    </section>
+
+    <section class="card control-card">
+      <div class="card-title-row">
+        <div>
+          <h2>Drive</h2>
+          <p class="muted">Hold a direction. Release to stop.</p>
+        </div>
+      </div>
+
+      <div class="pad" aria-label="RoboCar movement controls">
+        <button class="drive-btn up" data-command="forward" aria-label="Forward">▲</button>
+        <button class="drive-btn left" data-command="left" aria-label="Left">◀</button>
+        <button class="drive-btn stop" data-command="stop" aria-label="Stop">STOP</button>
+        <button class="drive-btn right" data-command="right" aria-label="Right">▶</button>
+        <button class="drive-btn down" data-command="backward" aria-label="Backward">▼</button>
+      </div>
+
+      <div class="keyboard-help">Keyboard: W A S D / Arrow keys</div>
+    </section>
+
+    <footer>
+      <span>RoboCar</span>
+      <span>•</span>
+      <span>GitHub Pages frontend</span>
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
